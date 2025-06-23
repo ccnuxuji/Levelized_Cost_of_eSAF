@@ -84,7 +84,23 @@ class eSAF_TEA_Model:
         print(f"  资本回收因子: {self.economic_parameters['crf']:.4f}")
     
     def _calculate_crf(self, discount_rate, lifetime):
-        """计算资本回收因子 (Capital Recovery Factor)"""
+        """
+        计算资本回收因子 (Capital Recovery Factor)
+        
+        CRF用于将一次性资本投资(CAPEX)转换为等值年金，考虑货币时间价值。
+        
+        公式: CRF = r(1+r)^n / [(1+r)^n - 1]
+        其中:
+        - r: 折现率 (discount rate)，反映资本成本和投资风险
+        - n: 项目寿命 (lifetime)，设备预期使用年限
+        
+        示例: 
+        - r=8%, n=20年 → CRF=0.1019
+        - 含义: 每投资1美元CAPEX，需年回收0.1019美元
+        
+        特殊情况:
+        - 当折现率=0时，CRF = 1/n (简单平均摊销)
+        """
         if discount_rate == 0:
             return 1.0 / lifetime
         return discount_rate * (1 + discount_rate)**lifetime / ((1 + discount_rate)**lifetime - 1)
@@ -325,37 +341,65 @@ class eSAF_TEA_Model:
         mj_per_kg_fuel = energy_density
         
         # 1. DAC阶段成本计算
+        # ======================================================================
+        # DAC (Direct Air Capture) 成本计算说明:
+        # - 基于CO2化学计量需求确定DAC设备规模
+        # - CAPEX基于CO2捕获能力 (t-CO2/year)
+        # - OPEX包括固定成本(维护、人工)和变动成本(能源、水)
+        # ======================================================================
         dac_data = self.dac_cost_data
-        co2_needed_per_fuel = dac_data["co2_capture_rate"]  # kg CO2/kg fuel
-        annual_co2_needed = annual_production * kg_per_tonne * co2_needed_per_fuel / capacity_factor  # kg CO2/year
+        co2_needed_per_fuel = dac_data["co2_capture_rate"]  # kg CO2/kg fuel (化学计量比: 3.1)
+        annual_co2_needed = annual_production * kg_per_tonne * co2_needed_per_fuel / capacity_factor  # kg CO2/year (设计能力)
         
-        # DAC CAPEX
+        # DAC CAPEX计算
+        # 基于CO2年捕获能力的设备投资，典型值4000 USD/(t-CO2/year)
         dac_capex_total = annual_co2_needed / kg_per_tonne * dac_data["capex_per_tco2"]  # USD
-        dac_capex_annual = dac_capex_total * crf  # USD/year
+        dac_capex_annual = dac_capex_total * crf  # USD/year (年化投资成本)
         
-        # DAC OPEX
-        dac_opex_fixed = dac_capex_total * dac_data["opex_fixed_percent"] / 100  # USD/year
+        # DAC OPEX计算
+        # 固定运营成本: 设备维护、人工、管理费用等，与产量无关
+        dac_opex_fixed = dac_capex_total * dac_data["opex_fixed_percent"] / 100  # USD/year (典型4% CAPEX/年)
         
-        # DAC变动成本 (每年实际生产)
-        actual_annual_production = annual_production * capacity_factor  # t/year actual
+        # DAC变动成本计算 (基于实际年产量)
+        # ======================================================================
+        # 变动成本随实际产量变化，主要包括能源和原料消耗
+        # ======================================================================
+        actual_annual_production = annual_production * capacity_factor  # t/year actual (考虑利用率)
         actual_co2_capture = actual_annual_production * kg_per_tonne * co2_needed_per_fuel  # kg CO2/year actual
         
+        # 电力成本: 风机、压缩机、真空泵等设备耗电
+        # 消耗强度: 20 MJ/kg CO2 = 5.56 kWh/kg CO2
         dac_electricity_cost = (actual_co2_capture * dac_data["electricity_consumption"] / 3.6) * dac_data["electricity_cost"]  # USD/year
+        
+        # 热能成本: CO2脱附再生所需热能，可利用低品位余热
+        # 消耗强度: 5 MJ/kg CO2 = 1.39 kWh/kg CO2
         dac_heat_cost = (actual_co2_capture * dac_data["heat_consumption"] / 3.6) * dac_data["heat_cost"]  # USD/year
+        
+        # 水成本: 工艺用水和冷却用水
         dac_water_cost = actual_co2_capture * dac_data["water_consumption"] * dac_data["water_cost"]  # USD/year
         
         dac_total_annual = dac_capex_annual + dac_opex_fixed + dac_electricity_cost + dac_heat_cost + dac_water_cost
         
         # 2. 电解阶段成本计算
+        # ======================================================================
+        # 电解 (Electrolysis) 成本计算说明:
+        # - 包括CO2电解制CO和水电解制H2两个过程
+        # - 产生FT合成所需的合成气 (CO + H2)
+        # - CAPEX基于电解装置功率需求 (kW)
+        # - OPEX主要是电力消耗，占电解总成本的70-80%
+        # ======================================================================
         elec_data = self.electrolysis_cost_data
-        syngas_needed = actual_annual_production * kg_per_tonne * elec_data["syngas_requirement"]  # kg syngas/year
+        syngas_needed = actual_annual_production * kg_per_tonne * elec_data["syngas_requirement"]  # kg syngas/year (实际需求)
         
-        # 分别计算CO和H2需求
-        co_h2_ratio = elec_data["co_h2_ratio"]
+        # 分别计算CO和H2需求量
+        # 基于FT合成理想进料比: CO:H2 = 0.923 (质量比) ≈ 1:2 (摩尔比)
+        co_h2_ratio = elec_data["co_h2_ratio"]  # 0.923
         co_needed = syngas_needed * (co_h2_ratio / (1 + co_h2_ratio))  # kg CO/year
         h2_needed = syngas_needed * (1 / (1 + co_h2_ratio))  # kg H2/year
         
-        # 电解装置功率需求
+        # 电解装置功率需求计算
+        # 功率 = 年能耗需求 / (年运行小时 × 设备容量系数)
+        # CO电解: 28 MJ/kg CO，H2电解: 55 MJ/kg H2
         co_power_needed = co_needed * elec_data["energy_input_co"] / 3.6 / 8760 / capacity_factor  # kW
         h2_power_needed = h2_needed * elec_data["energy_input_h2"] / 3.6 / 8760 / capacity_factor  # kW
         
@@ -405,11 +449,17 @@ class eSAF_TEA_Model:
         
         dist_total_annual = transport_cost + storage_cost + blending_cost
         
-        # 5. 总成本计算
-        total_annual_cost = dac_total_annual + elec_total_annual + ft_total_annual + dist_total_annual  # USD/year
-        total_annual_production_mj = actual_annual_production * kg_per_tonne * mj_per_kg_fuel  # MJ/year
+        # 5. 总成本计算和平准化成本
+        # ======================================================================
+        # 平准化成本 (LCOE) 计算:
+        # LCOE = 总年成本 / 年能源产出
+        # 这是评估eSAF经济性的核心指标，单位: USD/MJ
+        # ======================================================================
+        total_annual_cost = dac_total_annual + elec_total_annual + ft_total_annual + dist_total_annual  # USD/year (总年成本)
+        total_annual_production_mj = actual_annual_production * kg_per_tonne * mj_per_kg_fuel  # MJ/year (年能源产出)
         
-        # 平准化成本 (USD/MJ)
+        # 平准化成本计算 (USD/MJ)
+        # 考虑了所有成本组成和实际产能利用率
         levelized_cost = total_annual_cost / total_annual_production_mj
         
         # 存储结果

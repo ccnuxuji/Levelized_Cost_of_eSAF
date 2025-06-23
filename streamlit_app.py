@@ -493,18 +493,34 @@ if st.session_state.calculated:
         st.subheader("📐 核心公式")
         
         st.markdown("### 1. 平准化成本计算")
+        st.markdown("**基本定义**：平准化成本是单位能量产出的总成本")
         st.latex(r'''
         LCOE = \frac{\text{Total Annual Cost}}{\text{Annual Energy Production}}
         ''')
         
+        st.markdown("**具体计算公式**：")
         st.latex(r'''
         LCOE = \frac{C_{total}}{P_{fuel} \times E_{density} \times CF}
         ''')
+        st.markdown("""
+        **公式解释**：
+        - `C_total`: 总年成本，包含所有阶段的年化CAPEX和OPEX
+        - `P_fuel`: 设计年产能 (tonnes/year)
+        - `E_density`: 燃料能量密度，典型值43 MJ/kg
+        - `CF`: 产能利用率，实际产量与设计产量的比率
+        """)
         
         st.markdown("### 2. 总年成本分解")
         st.latex(r'''
         C_{total} = C_{DAC} + C_{Electrolysis} + C_{FT} + C_{Distribution}
         ''')
+        st.markdown("""
+        **成本构成**：
+        - `C_DAC`: 直接空气捕获成本，通常占总成本20-30%
+        - `C_Electrolysis`: 电解制合成气成本，通常占总成本40-50%
+        - `C_FT`: Fischer-Tropsch合成成本，通常占总成本20-30%
+        - `C_Distribution`: 分销成本，通常占总成本5-10%
+        """)
         
         st.markdown("### 3. 各阶段成本计算")
         
@@ -512,33 +528,77 @@ if st.session_state.calculated:
         st.latex(r'''
         C_{DAC} = CAPEX_{DAC} \times CRF + OPEX_{DAC,fixed} + OPEX_{DAC,variable}
         ''')
-        
+        st.markdown("**DAC变动成本**：主要是能源消耗")
         st.latex(r'''
         OPEX_{DAC,variable} = P_{fuel} \times R_{CO2} \times (E_{elec} \times C_{elec} + E_{heat} \times C_{heat} + W_{water} \times C_{water})
         ''')
+        st.markdown("""
+        **DAC参数说明**：
+        - `CAPEX_DAC`: DAC设备投资，基于CO2捕获能力 (USD/t-CO2/year)
+        - `R_CO2`: CO2捕获率，3.1 kg CO2/kg fuel (基于化学计量比)
+        - `E_elec`: 电力消耗强度，20 MJ/kg CO2 (风机、压缩等)
+        - `E_heat`: 热能消耗强度，5 MJ/kg CO2 (脱附再生)
+        """)
         
         st.markdown("**电解阶段 (Electrolysis):**")
         st.latex(r'''
         C_{Electrolysis} = (CAPEX_{CO} + CAPEX_{H2}) \times CRF + OPEX_{Elec,fixed} + OPEX_{Elec,variable}
         ''')
-        
+        st.markdown("**电解变动成本**：主要是电力和原料消耗")
         st.latex(r'''
         OPEX_{Elec,variable} = P_{fuel} \times R_{syngas} \times (E_{syngas} \times C_{elec} + Cost_{catalyst} + Cost_{water})
         ''')
+        st.markdown("""
+        **电解参数说明**：
+        - `CAPEX_CO`: CO2电解设备投资 (USD/kW)
+        - `CAPEX_H2`: 水电解设备投资 (USD/kW)
+        - `R_syngas`: 合成气需求，2.13 kg syngas/kg fuel
+        - `E_syngas`: 合成气制备能耗，综合CO和H2电解效率
+        """)
         
         st.markdown("**FT合成阶段 (Fischer-Tropsch Synthesis):**")
         st.latex(r'''
         C_{FT} = CAPEX_{FT} \times CRF + OPEX_{FT,fixed} + OPEX_{FT,variable}
         ''')
-        
+        st.markdown("**FT变动成本**：催化剂、工艺能耗、水消耗")
         st.latex(r'''
         OPEX_{FT,variable} = P_{fuel} \times (Cost_{catalyst} + E_{process} \times (C_{heat} + C_{cooling}) + W_{water} \times C_{water})
         ''')
+        st.markdown("""
+        **FT参数说明**：
+        - `CAPEX_FT`: FT反应器投资，基于年产能 (USD/t/year)
+        - `Cost_catalyst`: 催化剂成本，考虑寿命和更换
+        - `E_process`: 工艺能耗，25 MJ/kg fuel (反应热管理)
+        """)
         
         st.markdown("### 4. 资本回收因子 (Capital Recovery Factor)")
         st.latex(r'''
         CRF = \frac{r(1+r)^n}{(1+r)^n-1}
         ''')
+        st.markdown("""
+        **CRF作用**：将一次性投资CAPEX转换为等值年金
+        - `r`: 折现率，反映资本成本和投资风险
+        - `n`: 项目寿命，设备预期使用年限
+        - **示例**：r=8%, n=20年 → CRF=0.1019
+        - **含义**：每投资1美元，需年回收0.1019美元
+        """)
+        
+        st.markdown("### 5. 设备容量计算")
+        st.markdown("**DAC设备容量**：基于CO2年需求量")
+        st.latex(r'''
+        Capacity_{DAC} = \frac{P_{fuel} \times R_{CO2}}{CF \times 8760}
+        ''')
+        
+        st.markdown("**电解设备功率**：基于能耗和运行时间")
+        st.latex(r'''
+        Power_{Elec} = \frac{P_{fuel} \times R_{syngas} \times E_{syngas}}{CF \times 8760 \times 3.6}
+        ''')
+        st.markdown("""
+        **容量计算说明**：
+        - 8760: 年小时数
+        - 3.6: MJ转kWh的换算系数
+        - CF: 产能利用率，影响设备规模和利用效率
+        """)
         
         # 参数说明
         st.subheader("📋 主要参数说明")
@@ -568,11 +628,63 @@ if st.session_state.calculated:
                 "0.1019", "0.08", "20", "3.1", "2.13",
                 "20.0", "5.0", "25.0", "0.05", "0.03",
                 "0.001", "5.0"
+            ],
+            "详细说明": [
+                "单位燃料能量的总成本，是评估eSAF经济性的核心指标",
+                "包含所有阶段年化成本的总和，涵盖CAPEX和OPEX",
+                "工厂实际年产量，考虑产能利用率后的有效产出",
+                "eSAF的低热值，决定单位质量燃料的能量含量",
+                "实际运行时间占设计运行时间的比例，影响设备利用效率",
+                "将一次性投资转换为等值年金的系数，反映资金时间价值",
+                "投资回报要求，反映资本成本和投资风险",
+                "设备预期经济寿命，影响投资回收期和成本分摊",
+                "生产1kg eSAF所需的CO2量，基于化学反应计量比",
+                "FT合成所需的CO+H2混合气量，影响上游电解规模",
+                "单位CO2捕获的电力需求，主要用于风机、压缩机等设备",
+                "CO2脱附过程的热能需求，通常来自低品位工业余热",
+                "FT合成反应的工艺热需求，包括加热和温度维持",
+                "电力采购价格，是eSAF成本的关键敏感参数",
+                "工艺热价格，可来自余热回收或外购热源",
+                "工艺水价格，包括纯化和处理成本",
+                "工艺过程的水消耗量，包括反应用水和冷却用水"
             ]
         }
         
         param_df = pd.DataFrame(param_data)
         st.dataframe(param_df, use_container_width=True)
+        
+        # 参数分类说明
+        st.markdown("### 📊 参数分类与重要性")
+        
+        importance_data = {
+            "参数类别": [
+                "核心经济参数", "核心经济参数", "核心经济参数", "核心经济参数",
+                "工艺物料参数", "工艺物料参数", "工艺物料参数",
+                "能源消耗参数", "能源消耗参数", "能源消耗参数",
+                "成本价格参数", "成本价格参数", "成本价格参数"
+            ],
+            "参数名称": [
+                "平准化成本 (LCOE)", "总年成本 (C_total)", "资本回收因子 (CRF)", "产能利用率 (CF)",
+                "CO2需求量 (R_CO2)", "合成气需求量 (R_syngas)", "燃料能量密度 (E_density)",
+                "电力消耗 (E_elec)", "热能消耗 (E_heat)", "工艺能耗 (E_process)",
+                "电力成本 (C_elec)", "热能成本 (C_heat)", "水成本 (C_water)"
+            ],
+            "敏感性等级": [
+                "输出指标", "输出指标", "高", "高",
+                "中", "中", "低",
+                "高", "中", "中",
+                "极高", "中", "低"
+            ],
+            "影响机制": [
+                "技术经济性评价指标", "所有成本的总和", "影响CAPEX年化成本", "影响设备利用效率",
+                "决定DAC设备规模", "决定电解设备规模", "燃料品质特性",
+                "决定电解运营成本", "决定DAC运营成本", "决定FT运营成本",
+                "最重要的变动成本", "可通过余热回收优化", "相对较小的成本项"
+            ]
+        }
+        
+        importance_df = pd.DataFrame(importance_data)
+        st.dataframe(importance_df, use_container_width=True)
         
         # 技术假设
         st.subheader("🔬 关键技术假设")
@@ -582,30 +694,59 @@ if st.session_state.calculated:
         with col1:
             st.markdown("""
             **DAC技术假设:**
-            - CO2捕获率: 3.1 kg CO2/kg fuel
-            - 电力消耗: 20 MJ/kg CO2
-            - 热能消耗: 5 MJ/kg CO2
-            - 设备寿命: 20年
-            - 年运行时间: 8760 × 0.9 = 7884小时
+            - **CO2捕获率**: 3.1 kg CO2/kg fuel
+              - *基于FT合成化学计量比计算*
+              - *考虑了碳转化效率和产品分布*
+            - **电力消耗**: 20 MJ/kg CO2 (5.6 kWh/kg CO2)
+              - *包括风机、压缩机、真空泵等设备*
+              - *基于固体吸附剂DAC技术*
+            - **热能消耗**: 5 MJ/kg CO2 (1.4 kWh/kg CO2)
+              - *用于吸附剂再生和CO2脱附*
+              - *可利用低品位余热(80-120°C)*
+            - **设备寿命**: 20年
+              - *吸附剂更换周期: 3-5年*
+            - **年运行时间**: 8760 × 0.9 = 7884小时
             """)
         
         with col2:
             st.markdown("""
             **电解技术假设:**
-            - CO电解效率: 28 MJ/kg CO
-            - H2电解效率: 55 MJ/kg H2
-            - CO:H2质量比: 0.923
-            - 合成气需求: 2.13 kg/kg fuel
-            - 设备寿命: 20年
+            - **CO电解效率**: 28 MJ/kg CO
+              - *基于高温电解技术(SOEC)*
+              - *包括整流器损失和辅助设备*
+            - **H2电解效率**: 55 MJ/kg H2
+              - *基于PEM或碱性电解技术*
+              - *系统效率约65%*
+            - **CO:H2质量比**: 0.923 (摩尔比约1:2)
+              - *FT合成理想进料比*
+              - *最大化液体产品收率*
+            - **合成气需求**: 2.13 kg/kg fuel
+              - *考虑FT反应转化率85%*
+              - *包括循环气和尾气损失*
+            - **设备寿命**: 20年
+              - *电解槽更换周期: 7-10年*
             """)
         
         st.markdown("""
         **FT合成技术假设:**
-        - 反应温度: 200-350°C
-        - 反应压力: 20-40 bar
-        - 催化剂寿命: 2年
-        - 工艺能耗: 25 MJ/kg fuel
-        - 产品选择性: 80% C5+烷烃
+        - **反应温度**: 200-350°C
+          - *低温FT: 200-240°C (高链烷烃)*
+          - *高温FT: 300-350°C (汽油组分)*
+        - **反应压力**: 20-40 bar
+          - *影响产品分布和反应速率*
+          - *压力越高，重质产品越多*
+        - **催化剂寿命**: 2年
+          - *铁基或钴基催化剂*
+          - *活性衰减和再生成本*
+        - **工艺能耗**: 25 MJ/kg fuel
+          - *反应热管理、分离精制能耗*
+          - *包括预热、冷却、分离工序*
+        - **产品选择性**: 80% C5+烷烃
+          - *航空燃料馏分(C8-C16)*
+          - *副产轻烃可循环或外售*
+        - **碳转化率**: 85%
+          - *单程转化率，尾气循环*
+          - *总碳利用率可达95%*
         """)
         
         # 模型限制与假设
@@ -628,6 +769,70 @@ if st.session_state.calculated:
         - 电力价格波动对成本影响较大
         - 催化剂性能和寿命存在不确定性
         - 规模效应可能超出模型预期
+        """)
+        
+        # 添加经济参数的敏感性说明
+        st.subheader("📈 关键经济参数敏感性")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            **高敏感性参数 (成本影响>20%)**：
+            - **电力价格** (0.02-0.15 USD/kWh)
+              - *电解阶段电力成本占比高*
+              - *DAC阶段也依赖电力*
+              - *每0.01 USD/kWh变化影响约5-8%总成本*
+            
+            - **折现率** (5-12%)  
+              - *影响CAPEX年化成本*
+              - *设备密集型项目敏感度高*
+              - *1%变化影响约8-12%总成本*
+            
+            - **产能利用率** (70-95%)
+              - *影响设备投资摊销*
+              - *影响单位产品固定成本*
+              - *5%变化影响约3-5%总成本*
+            """)
+        
+        with col2:
+            st.markdown("""
+            **中等敏感性参数 (成本影响10-20%)**：
+            - **设备CAPEX** (±30%不确定性)
+              - *技术发展可能降低成本*
+              - *规模化生产降低设备价格*
+            
+            - **催化剂成本** (0.02-0.10 USD/kg fuel)
+              - *FT催化剂价格和寿命*
+              - *电解催化剂消耗*
+            
+            - **项目寿命** (15-25年)
+              - *影响CAPEX摊销期*
+              - *设备技术更新周期*
+            
+            **低敏感性参数 (成本影响<10%)**：
+            - 水成本、运输成本、储存成本
+            - 固定OPEX比例
+            - 热能价格(如有余热利用)
+            """)
+        
+        st.markdown("""
+        ### 💡 成本优化策略建议
+        
+        **短期策略 (1-3年)**：
+        - 寻找低成本电력来源 (可再生能源基地)
+        - 优化产能利用率 (连续稳定运行)
+        - 工艺余热回收利用
+        
+        **中期策略 (3-7年)**：
+        - 扩大生产规模实现规模经济
+        - 技术集成优化 (热电联产)
+        - 产业链协同 (CO2供应、产品销售)
+        
+        **长期策略 (7-15年)**：
+        - 设备技术迭代升级
+        - 催化剂性能提升
+        - 政策环境改善 (碳税、绿色溢价)
         """)
 
 else:
